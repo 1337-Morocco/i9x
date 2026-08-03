@@ -103,7 +103,43 @@ Upgrading from a pre-SQLite install needs no action — the old `*.json` sidecar
 are imported the first time the DB is created, and left on disk as a backup.
 Removing the package does **not** delete `/var/lib/i9x`.
 
-## Run it
+## Install
+
+On a Debian-family server (Debian, Ubuntu, Mint, Pop!_OS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/1337-Morocco/i9x/main/packaging/get.sh | sudo bash
+```
+
+That pulls the newest `.deb` from [releases](https://github.com/1337-Morocco/i9x/releases),
+installs Docker + Compose, nginx and certbot, starts the service, and exposes the
+panel on `:5633` over self-signed HTTPS. First visit creates your admin account.
+
+```bash
+… | sudo bash -s -- --no-expose          # install only, stay on localhost:3001
+… | sudo bash -s -- --port 8443          # different public port
+… | sudo bash -s -- --version v2.0.0     # pin a release
+```
+
+⚠️ Without `--no-expose` this puts a **root control panel on the public internet**.
+Use a long admin password, and prefer restricting it to your own IP:
+`sudo ufw allow from <your.ip> to any port 5633 proto tcp`.
+
+Upgrades come from the same release channel — `sudo i9x-update`, or the Updates
+panel in Settings.
+
+### Building and publishing
+
+```bash
+bash packaging/build-deb.sh --bump patch     # → build/dist/i9x_<version>_<arch>.deb
+GITHUB_TOKEN=… bash packaging/publish-github.sh
+```
+
+`publish-github.sh` creates the `vX.Y.Z` release if needed and uploads the `.deb`
+plus `version.json` — the manifest that `i9x-update` and `get.sh` read from
+`/releases/latest/download/version.json`. The token needs `contents: write`.
+
+## Run it (development)
 
 ```bash
 # terminal 1 — backend (real shell, bound to localhost only)

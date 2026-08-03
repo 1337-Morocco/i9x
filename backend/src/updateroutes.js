@@ -19,7 +19,8 @@ const router = express.Router();
 // A plain `node src/server.js` dev run has no define, hence the typeof guard.
 const BUILD_VERSION = typeof __I9X_VERSION__ !== 'undefined' ? __I9X_VERSION__ : 'dev';
 
-const MANIFEST_URL = process.env.I9X_UPDATE_URL || 'http://elyosoft.online/version.json';
+const MANIFEST_URL = process.env.I9X_UPDATE_URL
+  || 'https://github.com/1337-Morocco/i9x/releases/latest/download/version.json';
 const UPDATER = '/usr/bin/i9x-update';
 const STATE_FILE = '/var/lib/i9x/update-state.json';
 const LOG_FILE = '/var/log/i9x-update.log';

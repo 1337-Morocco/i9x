@@ -85,44 +85,56 @@ echo "Built: $DEB"
 ls -lh "$DEB" | awk '{print "Size:", $5}'
 echo "Install with:  sudo apt install $DEB"
 
-# Publish the fresh .deb + installer to the web root so the one-line installer
-# (curl … | sudo bash) always serves the latest build. Override or disable with
-# PUBLISH_DIR=/path  or  PUBLISH_DIR="".
-PUBLISH_DIR="${PUBLISH_DIR-/home/jawad/install}"
+# version.json is what installed copies poll to learn a new build exists, and
+# what get.sh falls back to when the releases API is unreachable. It ships as a
+# release asset under the fixed name version.json, so
+# /releases/latest/download/version.json is always the current manifest.
+# The entry for this architecture is replaced; entries for others are preserved.
+GH_REPO="${GH_REPO:-1337-Morocco/i9x}"
+TAG="v$VERSION"
+BASE_URL="${BASE_URL:-https://github.com/$GH_REPO/releases/download/$TAG}"
+MANIFEST="$DIST/version.json"
+SHA="$(sha256sum "$DEB" | cut -d' ' -f1)"
+SIZE="$(stat -c%s "$DEB")"
+
+# Seed from the published manifest so a build on this machine doesn't drop the
+# entry for an architecture that was built elsewhere.
+if [ ! -f "$MANIFEST" ]; then
+  curl -fsSL -o "$MANIFEST" \
+    "https://github.com/$GH_REPO/releases/latest/download/version.json" 2>/dev/null || true
+fi
+
+node -e '
+  const fs = require("fs");
+  const [file, version, arch, name, url, sha, size, notes] = process.argv.slice(1);
+  let m = {};
+  try { m = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+  // A build for another arch published against an older version is stale, so
+  // start a fresh builds map whenever the version number changes.
+  if (m.version !== version) m.builds = {};
+  m.name = "i9x";
+  m.version = version;
+  m.released = new Date().toISOString();
+  if (notes) m.notes = notes; else delete m.notes;
+  m.builds = m.builds || {};
+  m.builds[arch] = { file: name, url, sha256: sha, size: Number(size) };
+  fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n");
+' "$MANIFEST" "$VERSION" "$ARCH" "$(basename "$DEB")" \
+  "$BASE_URL/$(basename "$DEB")" "$SHA" "$SIZE" "$RELEASE_NOTES"
+
+echo ""
+echo "Manifest:  $MANIFEST (v$VERSION, $ARCH)"
+echo "Publish:   GITHUB_TOKEN=… bash packaging/publish-github.sh"
+
+# Optional extra mirror: copy the artefacts into a web root as well. Off unless
+# PUBLISH_DIR is set, since GitHub releases are the source of truth now.
+PUBLISH_DIR="${PUBLISH_DIR-}"
 if [ -n "$PUBLISH_DIR" ]; then
   echo ""
-  echo "==> Publishing to $PUBLISH_DIR"
+  echo "==> Mirroring to $PUBLISH_DIR"
   mkdir -p "$PUBLISH_DIR"
   cp -f "$DEB" "$PUBLISH_DIR/"
   cp -f "$ROOT/packaging/get.sh" "$PUBLISH_DIR/get.sh"
-
-  # version.json is what installed copies poll to learn a new build exists, and
-  # what get.sh reads so the one-liner always pulls the current release. The
-  # entry for this architecture is replaced; entries for others are preserved.
-  BASE_URL="${BASE_URL:-http://elyosoft.online}"
-  SHA="$(sha256sum "$DEB" | cut -d' ' -f1)"
-  SIZE="$(stat -c%s "$DEB")"
-  node -e '
-    const fs = require("fs");
-    const [file, version, arch, name, url, sha, size, notes] = process.argv.slice(1);
-    let m = {};
-    try { m = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
-    // A build for another arch published against an older version is stale, so
-    // start a fresh builds map whenever the version number changes.
-    if (m.version !== version) m.builds = {};
-    m.name = "i9x";
-    m.version = version;
-    m.released = new Date().toISOString();
-    if (notes) m.notes = notes; else delete m.notes;
-    m.builds = m.builds || {};
-    m.builds[arch] = { file: name, url, sha256: sha, size: Number(size) };
-    fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n");
-  ' "$PUBLISH_DIR/version.json" "$VERSION" "$ARCH" "$(basename "$DEB")" \
-    "$BASE_URL/$(basename "$DEB")" "$SHA" "$SIZE" "$RELEASE_NOTES"
-
-  # $PUBLISH_DIR is bind-mounted into the websvc-my-website container, which
-  # elyosoft.online proxies to — so copying here publishes immediately.
-  echo "Published: $(basename "$DEB")  +  get.sh  +  version.json (v$VERSION)"
-  echo "Install:   curl -fsSL $BASE_URL/get.sh | sudo bash"
-  echo "Upgrade:   sudo i9x-update      (or the Updates panel in Settings)"
+  cp -f "$MANIFEST" "$PUBLISH_DIR/version.json"
+  echo "Mirrored: $(basename "$DEB")  +  get.sh  +  version.json (v$VERSION)"
 fi

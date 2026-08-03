@@ -11,14 +11,14 @@
 #   i9x-update --check         report only, never install (no root needed)
 #   i9x-update --check --json  same, machine readable
 #   sudo i9x-update --force    reinstall even if the versions match
-#   sudo i9x-update --url http://host/version.json
+#   sudo i9x-update --url https://host/version.json
 #
 # Exit codes:  0 up to date / installed   10 update available (--check only)
 #              1 error
 #
 set -euo pipefail
 
-MANIFEST_URL="${I9X_UPDATE_URL:-http://elyosoft.online/version.json}"
+MANIFEST_URL="${I9X_UPDATE_URL:-https://github.com/1337-Morocco/i9x/releases/latest/download/version.json}"
 STATE_DIR="/var/lib/i9x"
 STATE_FILE="$STATE_DIR/update-state.json"
 LOG_FILE="/var/log/i9x-update.log"

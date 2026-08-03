@@ -2,10 +2,10 @@
 #
 # i9x one-line installer for Debian-family systems.
 #
-#   curl -fsSL http://elyosoft.online/get.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/1337-Morocco/i9x/main/packaging/get.sh | sudo bash
 #
-# By default it pulls the package from http://elyosoft.online/i9x_2.0.0_amd64.deb
-# and exposes it publicly over HTTPS (self-signed) on port 5633.
+# By default it pulls the newest .deb published to the GitHub releases of
+# 1337-Morocco/i9x and exposes it publicly over HTTPS (self-signed) on port 5633.
 #
 # Options (pass after `bash -s --`):
 #   --url  https://…/i9x_2.0.0_amd64.deb   install a specific .deb
@@ -13,9 +13,11 @@
 #   --port 5633                                 public HTTPS port (default 5633)
 #   --no-expose                                 install only, keep localhost-only
 #
-#   curl -fsSL http://elyosoft.online/get.sh | sudo bash
-#   curl -fsSL http://elyosoft.online/get.sh | sudo bash -s -- --port 8443
-#   curl -fsSL http://elyosoft.online/get.sh | sudo bash -s -- --no-expose
+#   G=https://raw.githubusercontent.com/1337-Morocco/i9x/main/packaging/get.sh
+#   curl -fsSL $G | sudo bash
+#   curl -fsSL $G | sudo bash -s -- --port 8443
+#   curl -fsSL $G | sudo bash -s -- --no-expose
+#   curl -fsSL $G | sudo bash -s -- --version v2.0.0
 #
 # Or via environment:
 #   I9X_DEB_URL=…   direct link to a .deb
@@ -28,10 +30,13 @@ set -euo pipefail
 
 main() {
   # ----- default source (override with --url / --repo / env if needed) -----
-  BASE_URL="${I9X_BASE_URL:-http://elyosoft.online}"
+  # Packages live on GitHub releases. REPO_DEFAULT is tried first: the releases
+  # API names the asset matching this machine's architecture. BASE_URL is the
+  # /latest/download redirect, used only if the API is unreachable or rate-limited.
+  REPO_DEFAULT="1337-Morocco/i9x"
+  BASE_URL="${I9X_BASE_URL:-https://github.com/$REPO_DEFAULT/releases/latest/download}"
   MANIFEST_URL="${I9X_UPDATE_URL:-$BASE_URL/version.json}"
-  DEB_URL_DEFAULT="$BASE_URL/i9x_2.0.0_amd64.deb"   # last-resort fallback
-  REPO_DEFAULT=""   # optional: "owner/repo" to pull from GitHub releases instead
+  DEB_URL_DEFAULT=""   # resolved from the API or the manifest; no stale pin here
 
   # ----- pretty output -----------------------------------------------------
   if [ -t 1 ]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; C=$'\e[36m'; N=$'\e[0m'
@@ -81,7 +86,8 @@ main() {
 
   # ----- resolve the .deb URL ---------------------------------------------
   # Precedence: --url / $I9X_DEB_URL  →  --repo / $I9X_REPO (GitHub)
-  #             →  REPO_DEFAULT (GitHub)   →  DEB_URL_DEFAULT (direct link)
+  #             →  REPO_DEFAULT (GitHub)   →  version.json manifest
+  #             →  DEB_URL_DEFAULT (direct link)
   [ -n "$REPO" ] || REPO="$REPO_DEFAULT"
   if [ -z "$DEB_URL" ] && [ -n "$REPO" ]; then
     local api
@@ -93,7 +99,14 @@ main() {
       | cut -d'"' -f4 \
       | grep -E "i9x_.*_(${ARCH}|all)\.deb$" \
       | head -n1 || true)"
-    [ -n "$DEB_URL" ] || die "Couldn't find a i9x_*_${ARCH}.deb asset in ${REPO}. Pass --url directly."
+    # An explicit --repo is the user's stated source, so a miss there is fatal.
+    # REPO_DEFAULT is only our first guess: the API is rate-limited per IP
+    # (60/hr unauthenticated), so fall through to the manifest instead of dying.
+    if [ -z "$DEB_URL" ]; then
+      [ "$REPO" = "$REPO_DEFAULT" ] \
+        || die "Couldn't find a i9x_*_${ARCH}.deb asset in ${REPO}. Pass --url directly."
+      warn "GitHub API gave no ${ARCH} asset (rate-limited?) — trying the release manifest."
+    fi
   fi
   # Nothing explicit: ask the release host which build is current. version.json
   # is rewritten by every build, so the one-liner never serves a stale package.

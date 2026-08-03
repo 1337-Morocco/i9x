@@ -69,7 +69,7 @@ export default function Updates() {
     <div className="settings-main">
       <h2 className="settings-h">Software updates</h2>
       <p className="settings-desc">
-        i9x checks <code>elyosoft.online</code> for a newer release and can install it for you.
+        i9x checks <code>github.com/1337-Morocco/i9x</code> for a newer release and can install it for you.
       </p>
 
       <div className="upd-card">
