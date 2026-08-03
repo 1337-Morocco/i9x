@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+#
+# i9x updater — installed by the .deb as /usr/bin/i9x-update.
+#
+# It asks the release host for a manifest (version.json), compares that with the
+# version installed on this machine and, if a newer build exists, downloads it,
+# verifies the SHA-256 and installs it with dpkg. The postinst restarts the
+# service, so the panel comes back on the new version by itself.
+#
+#   sudo i9x-update            check and install if newer
+#   i9x-update --check         report only, never install (no root needed)
+#   i9x-update --check --json  same, machine readable
+#   sudo i9x-update --force    reinstall even if the versions match
+#   sudo i9x-update --url http://host/version.json
+#
+# Exit codes:  0 up to date / installed   10 update available (--check only)
+#              1 error
+#
+set -euo pipefail
+
+MANIFEST_URL="${I9X_UPDATE_URL:-http://elyosoft.online/version.json}"
+STATE_DIR="/var/lib/i9x"
+STATE_FILE="$STATE_DIR/update-state.json"
+LOG_FILE="/var/log/i9x-update.log"
+CHECK=0 JSON=0 FORCE=0
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check)   CHECK=1; shift ;;
+    --json)    JSON=1; shift ;;
+    --force)   FORCE=1; shift ;;
+    --url)     MANIFEST_URL="${2:-}"; shift 2 ;;
+    -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+if [ -t 1 ] && [ "$JSON" = 0 ]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; C=$'\e[36m'; N=$'\e[0m'
+else B=''; G=''; Y=''; R=''; C=''; N=''; fi
+say()  { [ "$JSON" = 1 ] || echo "${C}==>${N} ${B}$*${N}"; }
+ok()   { [ "$JSON" = 1 ] || echo "${G}  ✓${N} $*"; }
+die()  { state error "$*"; [ "$JSON" = 1 ] && printf '{"error":%s}\n' "$(pyjson_str "$*")" || echo "${R}✗ $*${N}" >&2; exit 1; }
+
+pyjson_str() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"; }
+
+# Record progress so the panel (and a second invocation) can see what is going
+# on even while the service is being restarted underneath us.
+state() {
+  [ "$CHECK" = 1 ] && return 0
+  mkdir -p "$STATE_DIR" 2>/dev/null || return 0
+  python3 - "$STATE_FILE" "$1" "${2:-}" "${CURRENT:-}" "${LATEST:-}" <<'PY' 2>/dev/null || true
+import json, sys, time, os
+path, st, msg, cur, latest = sys.argv[1:6]
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump({"state": st, "message": msg, "from": cur, "to": latest,
+               "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f)
+os.replace(tmp, path)
+PY
+}
+
+# ---- what is installed right now ------------------------------------------
+CURRENT="$(dpkg-query -W -f='${Version}' i9x 2>/dev/null || true)"
+[ -n "$CURRENT" ] || CURRENT="unknown"
+ARCH="$(dpkg --print-architecture)"
+
+# ---- fetch the manifest ----------------------------------------------------
+fetch() {
+  if command -v curl >/dev/null 2>&1; then curl -fsSL --max-time 20 "$1"
+  else wget -qO- --timeout=20 "$1"; fi
+}
+state checking "contacting $MANIFEST_URL"
+MANIFEST="$(fetch "$MANIFEST_URL" 2>/dev/null || true)"
+[ -n "$MANIFEST" ] || die "Could not reach the update server ($MANIFEST_URL)."
+
+# Pull the fields for this architecture out of the manifest.
+read -r LATEST URL SHA SIZE NOTES <<EOF
+$(printf '%s' "$MANIFEST" | python3 -c '
+import json, sys
+try:
+    m = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+b = (m.get("builds") or {}).get(sys.argv[1]) or {}
+notes = " ".join((m.get("notes") or "").split()) or "-"
+print(m.get("version", ""), b.get("url", "-"), b.get("sha256", "-"), b.get("size", 0), notes)
+' "$ARCH" 2>/dev/null)
+EOF
+[ -n "${LATEST:-}" ] || die "The update server returned a manifest this version cannot read."
+[ "$URL" != "-" ] || die "No $ARCH build published for i9x $LATEST."
+
+# ---- compare (dpkg knows Debian version ordering) --------------------------
+NEWER=0
+if [ "$CURRENT" = "unknown" ]; then NEWER=1
+elif dpkg --compare-versions "$LATEST" gt "$CURRENT"; then NEWER=1; fi
+
+if [ "$JSON" = 1 ]; then
+  python3 -c '
+import json, sys
+cur, latest, newer, url, notes = sys.argv[1:6]
+print(json.dumps({"current": cur, "latest": latest,
+                  "updateAvailable": newer == "1", "url": url,
+                  "notes": None if notes == "-" else notes}))
+' "$CURRENT" "$LATEST" "$NEWER" "$URL" "$NOTES"
+else
+  echo "Installed: ${B}${CURRENT}${N}    Available: ${B}${LATEST}${N}"
+fi
+
+if [ "$NEWER" = 0 ] && [ "$FORCE" = 0 ]; then
+  ok "i9x is up to date."
+  state idle "up to date"
+  exit 0
+fi
+if [ "$CHECK" = 1 ]; then
+  [ "$JSON" = 1 ] || echo "${Y}An update is available.${N} Install it with:  sudo i9x-update"
+  exit 10
+fi
+
+# ---- install ---------------------------------------------------------------
+[ "$(id -u)" -eq 0 ] || die "Installing an update needs root. Try:  sudo i9x-update"
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "--- i9x-update $(date -u '+%Y-%m-%d %H:%M:%SZ')  $CURRENT -> $LATEST ---"
+
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+DEB="$TMP/i9x.deb"
+
+say "Downloading i9x $LATEST"
+state downloading "downloading $LATEST"
+if command -v curl >/dev/null 2>&1; then curl -fL --max-time 900 -o "$DEB" "$URL"
+else wget -O "$DEB" "$URL"; fi
+[ -s "$DEB" ] || die "Download failed or produced an empty file."
+
+if [ "$SHA" != "-" ] && [ -n "$SHA" ]; then
+  say "Verifying checksum"
+  GOT="$(sha256sum "$DEB" | cut -d' ' -f1)"
+  [ "$GOT" = "$SHA" ] || die "Checksum mismatch — refusing to install (expected $SHA, got $GOT)."
+  ok "SHA-256 verified"
+fi
+
+say "Installing"
+state installing "installing $LATEST"
+# Wait for any apt/dpkg run already in progress rather than failing on the lock.
+if command -v fuser >/dev/null 2>&1; then
+  for _ in $(seq 1 60); do
+    fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || break
+    echo "  waiting for another package manager to finish…"; sleep 5
+  done
+fi
+export DEBIAN_FRONTEND=noninteractive
+# 2.0 renamed the package weblinux -> i9x. Retire the old record first; its
+# postrm does not touch /var/lib/weblinux, so the data survives for the new
+# package's postinst to migrate.
+if dpkg-query -W -f='${Status}' weblinux 2>/dev/null | grep -q '^install ok installed'; then
+  say "Removing the previous weblinux package (data is kept and migrated)"
+  apt-get remove -y weblinux >/dev/null 2>&1 || dpkg -r --force-depends weblinux || true
+fi
+if ! dpkg -i "$DEB"; then
+  echo "dpkg reported missing dependencies — fixing"
+  apt-get -f install -y || die "Install failed. See $LOG_FILE"
+fi
+
+NOW="$(dpkg-query -W -f='${Version}' i9x 2>/dev/null || echo unknown)"
+state done "updated to $NOW"
+ok "i9x updated: ${CURRENT} → ${B}${NOW}${N}"
+systemctl is-active --quiet i9x.service \
+  && ok "Service restarted and running" \
+  || echo "${Y}  ! Service is not active — check: journalctl -u i9x -e${N}"

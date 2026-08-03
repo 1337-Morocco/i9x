@@ -1,0 +1,20 @@
+[Unit]
+Description=i9x — web desktop to manage this machine
+Documentation=https://localhost:3001
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/i9x
+User=root
+Restart=on-failure
+RestartSec=3
+# Bound to localhost by default. This is a root control panel — do NOT expose
+# it to a network without adding TLS + a hardened reverse proxy in front.
+Environment=HOST=127.0.0.1
+Environment=PORT=3001
+Environment=NODE_ENV=production
+Environment=I9X_PUBLIC=/usr/lib/i9x/public
+
+[Install]
+WantedBy=multi-user.target

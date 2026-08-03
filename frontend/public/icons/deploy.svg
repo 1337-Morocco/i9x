@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="dp-body" x1="40" y1="10" x2="90" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eef2f7"/><stop offset="1" stop-color="#c3ccd8"/>
+    </linearGradient>
+    <linearGradient id="dp-flame" x1="64" y1="92" x2="64" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd23f"/><stop offset="1" stop-color="#ff5722"/>
+    </linearGradient>
+  </defs>
+  <!-- flame -->
+  <path fill="url(#dp-flame)" d="M64 96c-9 6-13 15-13 24 5-2 9-4 13-8 4 4 8 6 13 8 0-9-4-18-13-24Z"/>
+  <!-- fins -->
+  <path fill="#e95420" d="M46 74c-10 4-16 12-18 24 12-2 20-8 24-18l-6-6ZM82 74c10 4 16 12 18 24-12-2-20-8-24-18l6-6Z"/>
+  <!-- body -->
+  <path fill="url(#dp-body)" d="M64 6c16 14 26 34 26 58 0 12-3 22-8 32H46c-5-10-8-20-8-32C38 40 48 20 64 6Z"/>
+  <!-- window -->
+  <circle cx="64" cy="48" r="12" fill="#4a90e2"/>
+  <circle cx="64" cy="48" r="12" fill="none" stroke="#2f6bb0" stroke-width="4"/>
+</svg>

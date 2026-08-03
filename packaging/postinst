@@ -1,0 +1,85 @@
+#!/bin/sh
+set -e
+
+# Pre-2.0 the package, the binary, the service and every path were called
+# "weblinux". Carry an existing install over rather than orphaning its data:
+# /var/lib/weblinux holds the SQLite DB, app checkouts, mounts and build logs.
+migrate_from_weblinux() {
+  systemctl stop weblinux.service >/dev/null 2>&1 || true
+  systemctl disable weblinux.service >/dev/null 2>&1 || true
+  rm -f /lib/systemd/system/weblinux.service /etc/systemd/system/weblinux.service
+
+  if [ -d /var/lib/weblinux ] && [ ! -e /var/lib/i9x ]; then mv /var/lib/weblinux /var/lib/i9x; fi
+  if [ -d /etc/weblinux ] && [ ! -e /etc/i9x ]; then mv /etc/weblinux /etc/i9x; fi
+
+  # The SQLite file itself is named after the panel too. Move the WAL and shm
+  # sidecars with it — the service is stopped above, so they are checkpointed.
+  for ext in "" "-wal" "-shm"; do
+    old="/var/lib/i9x/weblinux.db${ext}"
+    new="/var/lib/i9x/i9x.db${ext}"
+    if [ -f "$old" ] && [ ! -e "$new" ]; then mv "$old" "$new"; fi
+  done
+
+  # nginx vhosts for proxied domains are named after the panel, and the panel
+  # looks them up by that name — a stale prefix means it loses track of the
+  # domain it is supposed to own.
+  for d in /etc/nginx/sites-available /etc/nginx/conf.d; do
+    [ -d "$d" ] || continue
+    for f in "$d"/weblinux-*; do
+      [ -e "$f" ] || continue
+      new="$d/i9x-$(basename "$f" | sed 's/^weblinux-//')"
+      [ -e "$new" ] || mv "$f" "$new"
+    done
+  done
+  # The vhost bodies name the panel too — cert paths under /etc/weblinux, the
+  # $weblinux_conn_upgrade map, rate-limit zones, log files. Renaming the file
+  # without its contents leaves a config that fails nginx -t.
+  for d in /etc/nginx/sites-available /etc/nginx/conf.d; do
+    [ -d "$d" ] || continue
+    for f in "$d"/i9x-*; do
+      [ -f "$f" ] || continue
+      sed -i -e 's|/etc/weblinux/|/etc/i9x/|g' \
+             -e 's|/var/lib/weblinux/|/var/lib/i9x/|g' \
+             -e 's|/var/log/nginx/weblinux-|/var/log/nginx/i9x-|g' \
+             -e 's/weblinux_/i9x_/g' \
+             -e 's/Managed by WebLinux/Managed by i9x/g' "$f"
+    done
+  done
+
+  for f in /etc/nginx/sites-enabled/weblinux-*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    base="i9x-$(basename "$f" | sed 's/^weblinux-//')"
+    rm -f "$f"
+    [ -e "/etc/nginx/sites-enabled/$base" ] || \
+      ln -s "/etc/nginx/sites-available/$base" "/etc/nginx/sites-enabled/$base"
+  done
+  # Only reload if the result is valid — a rejected config must not take the
+  # machine's other sites down mid-upgrade.
+  if command -v nginx >/dev/null 2>&1 && nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx >/dev/null 2>&1 || true
+  fi
+
+  rm -f /usr/bin/weblinux /usr/bin/weblinux-update
+  rm -rf /usr/lib/weblinux
+}
+
+if [ "$1" = "configure" ]; then
+  if [ -e /var/lib/weblinux ] || [ -e /usr/bin/weblinux ] || \
+     [ -e /lib/systemd/system/weblinux.service ]; then
+    echo "Migrating the previous WebLinux install to i9x…"
+    migrate_from_weblinux
+    # An older updater can install this package without retiring the old one
+    # first, leaving a dpkg record whose files this script just removed.
+    if dpkg-query -W -f='${Status}' weblinux 2>/dev/null | grep -q '^install ok installed'; then
+      echo "Note: the old package record is still registered. Clear it with:"
+      echo "  sudo apt remove weblinux"
+    fi
+  fi
+
+  systemctl daemon-reload || true
+  systemctl enable i9x.service >/dev/null 2>&1 || true
+  systemctl restart i9x.service || true
+  echo "i9x is running on http://127.0.0.1:3001  (localhost only)."
+  echo "Manage: systemctl status i9x"
+fi
+exit 0

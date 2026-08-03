@@ -1,0 +1,16 @@
+Package: i9x
+Version: {{VERSION}}
+Section: admin
+Priority: optional
+Architecture: {{ARCH}}
+Depends: passwd, util-linux, iproute2, procps, python3, git
+Recommends: docker.io | docker-ce, docker-compose-plugin | docker-compose-v2, nginx, certbot, python3-certbot-nginx
+Replaces: weblinux
+Provides: weblinux
+Maintainer: i9x <root@localhost>
+Description: i9x — a server control panel that looks like a desktop
+ i9x turns any Linux server into a browser desktop you actually administer
+ from: draggable windows over a real bash PTY, a file manager and editor,
+ Docker app deploys straight from Git, managed Postgres, MySQL, Redis, Mongo
+ and ClickHouse, full nginx vhost editing with TLS, cron jobs, disk guard and
+ scoped API tokens. One .deb, one binary, no agent.
