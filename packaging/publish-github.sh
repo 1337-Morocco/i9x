@@ -20,6 +20,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="${GH_REPO:-1337-Morocco/i9x}"
+
+# Credentials live outside the repo so they can't be committed by accident.
+# An exported GITHUB_TOKEN still wins, which is what CI will do.
+ENV_FILE="${I9X_RELEASE_ENV:-$HOME/.config/i9x/release.env}"
+if [ -z "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ] && [ -r "$ENV_FILE" ]; then
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+fi
 TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
 
 if [ -t 1 ]; then B=$'\e[1m'; G=$'\e[32m'; Y=$'\e[33m'; R=$'\e[31m'; C=$'\e[36m'; N=$'\e[0m'
@@ -40,7 +48,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ -n "$TOKEN" ] || die "Set GITHUB_TOKEN (needs contents:write on $REPO)."
+if [ -z "$TOKEN" ]; then
+  die "No token. Either export GITHUB_TOKEN, or store it once:
+    mkdir -p ~/.config/i9x
+    printf 'GITHUB_TOKEN=%s\n' 'github_pat_…' > $ENV_FILE
+    chmod 600 $ENV_FILE
+  It needs Contents: Read and write on $REPO."
+fi
 command -v curl >/dev/null 2>&1 || die "curl not found."
 command -v node >/dev/null 2>&1 || die "node not found (used to read API responses)."
 
