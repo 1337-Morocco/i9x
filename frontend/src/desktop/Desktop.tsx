@@ -23,23 +23,30 @@ import { getTheme, onThemeChange } from './theme'
 import { updateapi } from '../api/update'
 
 // Icons are Papirus SVGs served from /public/icons.
-const APP_META: Record<AppId, { title: string; icon: string; w: number; h: number; chromeless?: boolean }> = {
+// `full` opens the app maximized: the config-heavy panels (settings, nginx,
+// databases, deploy) have a sidebar + form + preview to fit, and squeezing that
+// into a floating 720x520 window meant scrolling in three directions at once.
+// The w/h are still kept — they become the restore-down size.
+const APP_META: Record<
+  AppId,
+  { title: string; icon: string; w: number; h: number; chromeless?: boolean; full?: boolean }
+> = {
   files: { title: 'Files', icon: '/icons/files.svg', w: 900, h: 580, chromeless: true },
   editor: { title: 'Text Editor', icon: '/icons/editor.svg', w: 660, h: 460 },
   terminal: { title: 'Terminal', icon: '/icons/terminal.svg', w: 720, h: 440, chromeless: true },
   taskmanager: { title: 'Task Manager', icon: '/icons/taskmanager.svg', w: 720, h: 560 },
-  settings: { title: 'Settings', icon: '/icons/settings.svg', w: 720, h: 520 },
-  vscode: { title: 'VS Code', icon: '/icons/vscode.svg', w: 1040, h: 700 },
+  settings: { title: 'Settings', icon: '/icons/settings.svg', w: 860, h: 620, full: true },
+  vscode: { title: 'VS Code', icon: '/icons/vscode.svg', w: 1040, h: 700, full: true },
   system: { title: 'System', icon: '/icons/system.svg', w: 820, h: 600 },
   docker: { title: 'Docker', icon: '/icons/docker.svg', w: 860, h: 620 },
   wordpress: { title: 'WordPress', icon: '/icons/wordpress.svg', w: 860, h: 620 },
   websites: { title: 'Static Websites', icon: '/icons/websites.svg', w: 820, h: 600 },
-  deploy: { title: 'Deploy', icon: '/icons/deploy.svg', w: 880, h: 640 },
-  databases: { title: 'Databases', icon: '/icons/databases.svg', w: 900, h: 640 },
+  deploy: { title: 'Deploy', icon: '/icons/deploy.svg', w: 880, h: 640, full: true },
+  databases: { title: 'Databases', icon: '/icons/databases.svg', w: 900, h: 640, full: true },
   // Wide enough for the nginx configuration panel's nav + form + preview.
-  domains: { title: 'Domains & Proxy', icon: '/icons/domains.svg', w: 1020, h: 700 },
-  tasks: { title: 'Scheduled Tasks', icon: '/icons/tasks.svg', w: 900, h: 620 },
-  maintenance: { title: 'Cleanup & Disk', icon: '/icons/maintenance.svg', w: 940, h: 660 },
+  domains: { title: 'Domains & Proxy', icon: '/icons/domains.svg', w: 1020, h: 700, full: true },
+  tasks: { title: 'Scheduled Tasks', icon: '/icons/tasks.svg', w: 900, h: 620, full: true },
+  maintenance: { title: 'Cleanup & Disk', icon: '/icons/maintenance.svg', w: 940, h: 660, full: true },
 }
 // Pinned shortcuts kept in the dock. Everything else lives in the app menu.
 // Text Editor is launched by opening a file — not shown in either.
@@ -102,7 +109,7 @@ export default function Desktop({ username, onLogout }: { username: string; onLo
           h: meta.h,
           z: ++zCounter,
           minimized: false,
-          maximized: false,
+          maximized: !!meta.full,
           chromeless: meta.chromeless,
           payload: opts?.payload,
         },
