@@ -46,6 +46,10 @@ const APP_META: Record<AppId, { title: string; icon: string; w: number; h: numbe
 const DOCK_APPS: AppId[] = ['files', 'terminal', 'deploy']
 // Services surfaced through the app-launcher menu.
 const MENU_APPS: AppId[] = ['vscode', 'websites', 'wordpress', 'databases', 'domains', 'tasks', 'maintenance', 'docker', 'system', 'taskmanager', 'settings']
+// Every service, laid out on the wallpaper. Same set as the dock plus the menu,
+// so nothing is reachable only by digging through the launcher. Text Editor is
+// excluded — it has no meaning without a file to open.
+const DESKTOP_APPS: AppId[] = [...DOCK_APPS, ...MENU_APPS]
 
 let nextId = 1
 let zCounter = 10 // monotonically increasing stacking order
@@ -236,8 +240,12 @@ export default function Desktop({ username, onLogout }: { username: string; onLo
         </div>
       )}
 
-      {/* Desktop folder icons */}
-      <DesktopIcons open={open} />
+      {/* Service icons */}
+      <DesktopIcons
+        apps={DESKTOP_APPS.map((a) => ({ id: a, title: APP_META[a].title, icon: APP_META[a].icon }))}
+        running={new Set(wins.map((w) => w.app))}
+        open={open}
+      />
 
       {/* Windows */}
       {wins.map((w) => (

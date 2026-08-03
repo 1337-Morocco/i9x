@@ -1804,7 +1804,7 @@ textarea,
   white-space: pre-wrap;
 }
 
-/* ---------- Desktop folder icons (clear of the left dock) ---------- */
+/* ---------- Desktop service icons (clear of the left dock) ---------- */
 .desk-icons {
   position: absolute;
   top: 20px;
@@ -1819,6 +1819,7 @@ textarea,
   align-content: start;
 }
 .desk-icon {
+  position: relative;
   width: 92px;
   height: 96px;
   border: 1.5px solid transparent;
@@ -1830,6 +1831,7 @@ textarea,
   align-items: center;
   gap: 6px;
   padding: 8px 4px;
+  transition: background 0.12s ease;
 }
 .desk-icon:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -1842,6 +1844,26 @@ textarea,
   height: 50px;
   display: grid;
   place-items: center;
+}
+/* Service icon. Papirus SVGs already carry their own padding, so this is a
+   touch larger than the old 48px file thumbnails to read at the same weight. */
+.desk-appico {
+  width: 52px;
+  height: 52px;
+  display: block;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+}
+/* Matches the dock's running marker so both read the same way. */
+.desk-icon.running::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
 }
 .desk-folder {
   color: #ffcf7a;
