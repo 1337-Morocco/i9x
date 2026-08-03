@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities please do **not** open an issue —
+        see [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Domains app
+        2. …
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: i9x version
+      description: "`i9x-update --check`, or the About pane in Settings"
+    validations: { required: true }
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Ubuntu 24.04
+    validations: { required: true }
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`journalctl -u i9x -n 100 --no-pager`, plus browser console errors if relevant."
+      render: shell

@@ -1,0 +1,55 @@
+name: Release
+
+# Tag-driven: `git tag v2.1.0 && git push --tags` builds the package and
+# publishes it. This is what removes the need for a long-lived personal access
+# token on a developer's laptop — GITHUB_TOKEN is minted per run and expires
+# with it.
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (defaults to packaging/VERSION)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Check before shipping
+        run: npm run check
+
+      - name: Confirm the tag matches packaging/VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          file="$(tr -d '[:space:]' < packaging/VERSION)"
+          if [ "$tag" != "$file" ]; then
+            echo "::error::Tag v$tag does not match packaging/VERSION ($file)."
+            echo "A mismatch would publish an asset whose filename disagrees with version.json,"
+            echo "and installed panels would never see the upgrade."
+            exit 1
+          fi
+
+      - name: Build package
+        run: npm run package
+
+      - name: Publish to GitHub releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run release

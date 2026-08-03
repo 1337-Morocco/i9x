@@ -6,38 +6,19 @@
 > and ClickHouse, full nginx vhost editing with TLS, cron jobs, disk guard and
 > scoped API tokens. One .deb, one binary, no agent.
 
+[![CI](https://github.com/1337-Morocco/i9x/actions/workflows/ci.yml/badge.svg)](https://github.com/1337-Morocco/i9x/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+![i9x](ui.webp)
+
 A browser **desktop environment** (React) driving the **real host machine**:
-draggable windows, a top bar, and a dock, with three real apps.
+draggable windows, a dock, and every service as an app.
 
 - 🖳 **Terminal** — a real `bash` PTY. `ls`, `vim`, `top`, colors, tab-completion.
 - 📁 **Files** — a real file manager: browse the machine, open/create/rename/delete.
 - 📝 **Text Editor** — opens real files, edits, saves to disk (Ctrl+S).
 
-## Architecture
-
-```
-Browser (React desktop)
-  ├─ Terminal ──WebSocket /ws──▶  bash PTY  (script -qfc bash)
-  └─ Files / Editor ──REST /api/fs──▶  real filesystem (fs/promises)
-                              Backend: Express + ws
-```
-
-- **frontend/** — Vite + React 19. `desktop/` is the window manager; `apps/` are
-  the Files/Editor apps; `Terminal.tsx` is the xterm client. Dev server proxies
-  `/ws` + `/api` to :3001.
-- **backend/** — Express + `ws`.
-  - `server.js` — spawns a real bash PTY per WebSocket via the `script` util
-    (no native modules / no compiler needed).
-  - `fsroutes.js` — REST filesystem API (`/api/fs/list|read|write|mkdir|touch|rename|delete`).
-  - `db.js` — SQLite metadata store via built-in `node:sqlite` (no native module,
-    so the packaged binary stays self-contained).
-  - `deployroutes.js` + `mounts.js` — build and run app containers (env, storage,
-    resource caps all funnel through one `containerRunArgs`).
-  - `dbengines.js` + `dbroutes.js` — the database driver map and its
-    engine-agnostic routes.
-  - `apitokens.js`, `apiv1.js`, `openapi.js` — tokens, the versioned API, its spec.
-  - `cron.js`, `scheduler.js`, `taskroutes.js`, `maintenanceroutes.js` — everything
-    that happens on a timer.
+See [docs/architecture.md](docs/architecture.md) for how it fits together.
 
 ## Platform features
 
@@ -84,25 +65,6 @@ Browser (React desktop)
   domains down. i9x also owns the TLS block itself now (certbot only issues
   the certificate), so regenerating a vhost never loses HTTPS.
 
-## Where state lives
-
-| What | Where |
-|---|---|
-| Service records (apps, databases, sites, proxied domains, tasks, mounts, tokens) | `/var/lib/i9x/i9x.db` (SQLite, WAL) |
-| Generated configs — `docker-compose.yml`, `nginx.conf`, cloned repos, build logs | `/var/lib/i9x/{wordpress,static,next,apps}/` |
-| Database provisioning logs | `/var/lib/i9x/databases/<name>.log` |
-| Panel-edited config files mounted into apps | `/var/lib/i9x/mounts/<app>/` |
-| nginx vhosts for proxied domains | `/etc/nginx/sites-available/i9x-<domain>` |
-| Site content and databases | Docker named volumes / the docroot you chose |
-
-Everything survives a reboot: containers run with `--restart unless-stopped` and
-the records are re-read from the DB. Running non-root (dev) the DB falls back to
-`~/.local/share/i9x/i9x.db`; override with `I9X_DB`.
-
-Upgrading from a pre-SQLite install needs no action — the old `*.json` sidecars
-are imported the first time the DB is created, and left on disk as a backup.
-Removing the package does **not** delete `/var/lib/i9x`.
-
 ## Install
 
 On a Debian-family server (Debian, Ubuntu, Mint, Pop!_OS):
@@ -128,34 +90,33 @@ Use a long admin password, and prefer restricting it to your own IP:
 Upgrades come from the same release channel — `sudo i9x-update`, or the Updates
 panel in Settings.
 
-### Building and publishing
+## Development
 
 ```bash
-bash packaging/build-deb.sh --bump patch     # → build/dist/i9x_<version>_<arch>.deb
-GITHUB_TOKEN=… bash packaging/publish-github.sh
+nvm use && npm ci      # one install for both workspaces
+npm run dev            # frontend on :5173
+npm run dev:backend    # backend on :3001
+npm run check          # typecheck + lint + test — what CI runs
 ```
 
-`publish-github.sh` creates the `vX.Y.Z` release if needed and uploads the `.deb`
-plus `version.json` — the manifest that `i9x-update` and `get.sh` read from
-`/releases/latest/download/version.json`. The token needs `contents: write`.
+## Documentation
 
-## Run it (development)
-
-```bash
-# terminal 1 — backend (real shell, bound to localhost only)
-cd backend && npm start
-
-# terminal 2 — frontend
-cd frontend && npm run dev
-```
-
-Open http://localhost:5173  (over VS Code remote, use the forwarded port).
+| | |
+|---|---|
+| [Architecture](docs/architecture.md) | how the pieces fit, where state lives, why no native modules |
+| [Development](docs/development.md) | setup, tests, packaging, releasing |
+| [Deployment](docs/deployment.md) | install, update channel, publishing a release |
+| [Contributing](CONTRIBUTING.md) | what to know before a pull request |
+| [Security](SECURITY.md) | threat model and how to report a vulnerability |
 
 ## ⚠️ Security
 
-The backend gives **full shell access to this machine** as whoever runs it.
-It binds to `127.0.0.1` only. **Do not expose it to a network** without adding
-authentication (login + per-session authorization) first.
+The backend gives **full shell access to this machine** as whoever runs it, and
+the panel is a root control panel by design. It binds to `127.0.0.1` by default;
+the installer can front it with TLS on a public port, which is opt-out.
+
+If you expose it, use a long admin password and restrict it by source address.
+See [SECURITY.md](SECURITY.md) for the full threat model.
 
 ## Roadmap / next steps
 

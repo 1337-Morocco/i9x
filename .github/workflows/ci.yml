@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  package:
+    name: Build the .deb
+    runs-on: ubuntu-latest
+    # Only worth the SEA build once the fast checks are green.
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build package
+        run: npm run package
+
+      - name: Verify the package installs and is well formed
+        run: |
+          deb=$(ls build/dist/i9x_*_amd64.deb)
+          dpkg-deb --info "$deb"
+          # The frontend must actually be inside the package — a build that
+          # silently ships without assets still produces a valid .deb.
+          dpkg-deb -c "$deb" | grep -q 'usr/lib/i9x/public/index.html'
+          sudo dpkg -i "$deb" || sudo apt-get -f install -y
+          dpkg -s i9x | grep '^Status: install ok installed'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: i9x-deb
+          path: build/dist/*.deb
+          retention-days: 14

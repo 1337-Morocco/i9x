@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that i9x makes hard today?
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+  - type: markdown
+    attributes:
+      value: |
+        Two constraints shape what can be accepted: i9x ships as a single
+        binary with **no native modules**, and it must **run offline**.

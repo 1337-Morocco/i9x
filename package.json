@@ -1,0 +1,33 @@
+{
+  "name": "i9x",
+  "version": "2.0.0",
+  "private": true,
+  "description": "A server control panel that looks like a desktop",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1337-Morocco/i9x.git"
+  },
+  "homepage": "https://github.com/1337-Morocco/i9x",
+  "bugs": {
+    "url": "https://github.com/1337-Morocco/i9x/issues"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "npm run build --workspace=frontend",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspace=frontend",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "package": "bash packaging/build-deb.sh",
+    "release": "bash packaging/publish-github.sh"
+  }
+}
