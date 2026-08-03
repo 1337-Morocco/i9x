@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
-import { FiX, FiMinus, FiSquare, FiCopy } from 'react-icons/fi'
+import { FiX, FiMinus, FiSquare } from 'react-icons/fi'
 import type { WinState } from './types'
 
 type Props = {
@@ -73,23 +73,18 @@ export default function Window(props: Props) {
     >
       {!win.chromeless && (
         <div className="win-bar" onMouseDown={startDrag} onDoubleClick={props.onToggleMax}>
-          <span className="win-title">{win.title}</span>
           <div className="win-controls">
-            <button className="wc min" title="Minimize" onClick={props.onMinimize} onMouseDown={stop}>
-              <FiMinus />
-            </button>
-            <button
-              className="wc max"
-              title={win.maximized ? 'Restore' : 'Maximize'}
-              onClick={props.onToggleMax}
-              onMouseDown={stop}
-            >
-              {win.maximized ? <FiCopy /> : <FiSquare />}
-            </button>
             <button className="wc close" title="Close" onClick={props.onClose} onMouseDown={stop}>
               <FiX />
             </button>
+            <button className="wc min" title="Minimize" onClick={props.onMinimize} onMouseDown={stop}>
+              <FiMinus />
+            </button>
+            <button className="wc max" title="Maximize" onClick={props.onToggleMax} onMouseDown={stop}>
+              <FiSquare />
+            </button>
           </div>
+          <span className="win-title">{win.title}</span>
         </div>
       )}
       <div className="win-body">{props.children}</div>
